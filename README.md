@@ -1,0 +1,1 @@
+A modern web-based Student Attendance Management System built using ReactJS, TypeScript, Node.js, and Vite. This application helps teachers/admins manage students, mark attendance, and track attendance records efficiently through a clean and responsive interface.
