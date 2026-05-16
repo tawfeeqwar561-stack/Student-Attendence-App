@@ -1,8 +1,30 @@
+# Dependencies
 node_modules/
-build/
+
+# Build output
 dist/
-coverage/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+
+# Prisma
+server/prisma/migrations/
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
 *.log
-.env*
-!.env.example
+npm-debug.log*
