@@ -1,0 +1,362 @@
+// ============================================
+// College ERP — Prisma Database Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Enums ----
+
+enum Role {
+  ADMIN
+  FACULTY
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum FeeStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIALLY_PAID
+}
+
+enum FeeType {
+  TUITION
+  HOSTEL
+  LIBRARY
+  LAB
+  EXAM
+  FINE
+  OTHER
+}
+
+enum ExamType {
+  QUIZ
+  MIDTERM
+  FINAL
+  ASSIGNMENT
+  PRACTICAL
+}
+
+enum DisciplineAction {
+  WARNING
+  FINE
+  SUSPENSION
+  EXPULSION
+  COMMUNITY_SERVICE
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  URGENT
+  ANNOUNCEMENT
+}
+
+// ---- Models ----
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  role      Role     @default(STUDENT)
+  avatarUrl String?  @map("avatar_url")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student           Student?
+  faculty           Faculty?
+  notifications     Notification[]
+  disciplineReports DisciplineRecord[] @relation("ReportedBy")
+  attendanceMarked  Attendance[]       @relation("MarkedBy")
+
+  @@map("users")
+}
+
+model Department {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  code             String   @unique
+  headOfDepartment String?  @map("head_of_department")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  students Student[]
+  faculty  Faculty[]
+  courses  Course[]
+
+  @@map("departments")
+}
+
+model Student {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  rollNumber    String   @unique @map("roll_number")
+  departmentId  String   @map("department_id")
+  semester      Int      @default(1)
+  section       String?
+  dateOfBirth   DateTime? @map("date_of_birth")
+  phone         String?
+  address       String?
+  guardianName  String?  @map("guardian_name")
+  guardianPhone String?  @map("guardian_phone")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department        Department         @relation(fields: [departmentId], references: [id])
+  enrollments       Enrollment[]
+  attendance        Attendance[]
+  marks             Mark[]
+  fees              Fee[]
+  results           Result[]
+  disciplineRecords DisciplineRecord[]
+  grades            Grade[]
+
+  @@map("students")
+}
+
+model Faculty {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  employeeId     String   @unique @map("employee_id")
+  departmentId   String   @map("department_id")
+  designation    String?
+  specialization String?
+  phone          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id])
+  sections   Section[]
+
+  @@map("faculty")
+}
+
+model Course {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  credits      Int
+  departmentId String   @map("department_id")
+  semester     Int
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department Department @relation(fields: [departmentId], references: [id])
+  sections   Section[]
+  exams      Exam[]
+
+  @@map("courses")
+}
+
+model Section {
+  id           String   @id @default(uuid())
+  courseId      String   @map("course_id")
+  facultyId    String   @map("faculty_id")
+  name         String
+  academicYear String   @map("academic_year")
+  semester     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  course      Course       @relation(fields: [courseId], references: [id])
+  faculty     Faculty      @relation(fields: [facultyId], references: [id])
+  enrollments Enrollment[]
+  attendance  Attendance[]
+  exams       Exam[]
+  grades      Grade[]
+
+  @@unique([courseId, name, academicYear, semester])
+  @@map("sections")
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  studentId String   @map("student_id")
+  sectionId String   @map("section_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, sectionId])
+  @@map("enrollments")
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  studentId  String           @map("student_id")
+  sectionId  String           @map("section_id")
+  date       DateTime
+  status     AttendanceStatus
+  markedById String           @map("marked_by_id")
+  remarks    String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section  Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  markedBy User    @relation("MarkedBy", fields: [markedById], references: [id])
+
+  @@unique([studentId, sectionId, date])
+  @@index([sectionId, date])
+  @@map("attendance")
+}
+
+model Exam {
+  id        String   @id @default(uuid())
+  courseId   String   @map("course_id")
+  sectionId String   @map("section_id")
+  name      String
+  type      ExamType
+  maxMarks  Int      @map("max_marks")
+  date      DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  course  Course  @relation(fields: [courseId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+  marks   Mark[]
+
+  @@map("exams")
+}
+
+model Mark {
+  id            String  @id @default(uuid())
+  studentId     String  @map("student_id")
+  examId        String  @map("exam_id")
+  obtainedMarks Float   @map("obtained_marks")
+  remarks       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, examId])
+  @@map("marks")
+}
+
+model Fee {
+  id           String    @id @default(uuid())
+  studentId    String    @map("student_id")
+  type         FeeType
+  amount       Float
+  dueDate      DateTime  @map("due_date")
+  status       FeeStatus @default(PENDING)
+  paidAmount   Float     @default(0) @map("paid_amount")
+  academicYear String    @map("academic_year")
+  semester     Int
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  student  Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  payments FeePayment[]
+
+  @@map("fees")
+}
+
+model FeePayment {
+  id            String   @id @default(uuid())
+  feeId         String   @map("fee_id")
+  amount        Float
+  paymentDate   DateTime @map("payment_date")
+  transactionId String   @unique @map("transaction_id")
+  paymentMethod String   @map("payment_method")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  fee Fee @relation(fields: [feeId], references: [id], onDelete: Cascade)
+
+  @@map("fee_payments")
+}
+
+model Result {
+  id           String   @id @default(uuid())
+  studentId    String   @map("student_id")
+  semester     Int
+  academicYear String   @map("academic_year")
+  sgpa         Float
+  cgpa         Float
+  totalCredits Int      @map("total_credits")
+  earnedCredits Int     @map("earned_credits")
+  isPublished  Boolean  @default(false) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, semester, academicYear])
+  @@map("results")
+}
+
+model DisciplineRecord {
+  id            String           @id @default(uuid())
+  studentId     String           @map("student_id")
+  reportedById  String           @map("reported_by_id")
+  incidentDate  DateTime         @map("incident_date")
+  description   String
+  actionTaken   DisciplineAction @map("action_taken")
+  actionDetails String?          @map("action_details")
+  isResolved    Boolean          @default(false) @map("is_resolved")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reportedBy User    @relation("ReportedBy", fields: [reportedById], references: [id])
+
+  @@map("discipline_records")
+}
+
+model Grade {
+  id           String   @id @default(uuid())
+  studentId    String   @map("student_id")
+  sectionId    String   @map("section_id")
+  letterGrade  String   @map("letter_grade")
+  gradePoints  Float    @map("grade_points")
+  remarks      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, sectionId])
+  @@map("grades")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false) @map("is_read")
+  link      String?
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
